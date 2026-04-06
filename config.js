@@ -14,5 +14,5 @@ window.APP_CONFIG = {
     'http://localhost:3004/api/chat',
     'http://localhost:3005/api/chat'
   ],
-  REQUEST_TIMEOUT_MS: 120000
+  REQUEST_TIMEOUT_MS: 0
 };

@@ -13,7 +13,7 @@ const config = window.APP_CONFIG || {
         'http://localhost:3004/api/chat',
         'http://localhost:3005/api/chat'
     ],
-    REQUEST_TIMEOUT_MS: 120000
+    REQUEST_TIMEOUT_MS: 0
 };
 
 let currentChatId;
@@ -242,7 +242,9 @@ async function requestChatApi(userMessage) {
 
     for (const apiUrl of apiCandidates) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), config.REQUEST_TIMEOUT_MS);
+        const timeoutId = Number(config.REQUEST_TIMEOUT_MS) > 0
+            ? setTimeout(() => controller.abort(), Number(config.REQUEST_TIMEOUT_MS))
+            : null;
 
         try {
             const response = await fetch(apiUrl, {
@@ -296,7 +298,7 @@ async function requestChatApi(userMessage) {
             return trimmedBody;
         } catch (error) {
             if (error.name === 'AbortError') {
-                throw new Error('The local chat server request timed out.');
+                throw new Error('The local chat server request timed out. Increase `REQUEST_TIMEOUT_MS` or set it to `0` to disable the timeout.');
             }
 
             if (error instanceof TypeError) {
@@ -305,7 +307,9 @@ async function requestChatApi(userMessage) {
 
             throw error;
         } finally {
-            clearTimeout(timeoutId);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         }
     }
 

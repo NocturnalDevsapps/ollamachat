@@ -6,7 +6,7 @@ const { URL } = require('url');
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT || 3001);
 const MAX_PORT_ATTEMPTS = Number(process.env.MAX_PORT_ATTEMPTS || 10);
-const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 120000);
+const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 0);
 const WEBHOOK_URL = process.env.WEBHOOK_URL || 'https://n8nwebhook.bukamdotcom.click/webhook/c751b7eb-8ee8-4b2a-9520-cc81319af756';
 const FALLBACK_WEBHOOK_URL = process.env.FALLBACK_WEBHOOK_URL || '';
 const ROOT_DIR = __dirname;
@@ -138,7 +138,9 @@ async function proxyWebhookRequest(requestBody) {
     for (let index = 0; index < webhookCandidates.length; index += 1) {
         const webhookUrl = webhookCandidates[index];
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+        const timeoutId = REQUEST_TIMEOUT_MS > 0
+            ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+            : null;
 
         try {
             const webhookResponse = await fetch(webhookUrl, {
@@ -196,7 +198,7 @@ async function proxyWebhookRequest(requestBody) {
                 return {
                     statusCode: 504,
                     contentType: 'text/plain; charset=utf-8',
-                    body: 'The webhook request timed out.'
+                    body: 'The webhook request timed out. Increase REQUEST_TIMEOUT_MS or set it to 0 to disable the timeout.'
                 };
             }
 
@@ -206,7 +208,9 @@ async function proxyWebhookRequest(requestBody) {
                 body: `Unable to reach the webhook: ${error.message}`
             };
         } finally {
-            clearTimeout(timeoutId);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
         }
     }
 
