@@ -86,6 +86,28 @@ toggleSidebarButton.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
 });
 
+function isMobileViewport() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function closeSidebarOnMobile() {
+    if (isMobileViewport()) {
+        sidebar.classList.remove('collapsed');
+    }
+}
+
+document.addEventListener('click', event => {
+    if (!isMobileViewport() || !sidebar.classList.contains('collapsed')) {
+        return;
+    }
+
+    if (sidebar.contains(event.target) || toggleSidebarButton.contains(event.target)) {
+        return;
+    }
+
+    sidebar.classList.remove('collapsed');
+});
+
 function saveToLocalStorage() {
     localStorage.setItem(config.STORAGE_KEY || 'chatHistoryDirectWebhook', JSON.stringify(chatHistoryData));
 }
@@ -305,6 +327,7 @@ function initChat(chatId = null) {
     }
 
     updateActiveChatInSidebar();
+    closeSidebarOnMobile();
 }
 
 // Add chat to sidebar
