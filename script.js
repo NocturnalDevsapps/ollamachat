@@ -1,19 +1,7 @@
 const config = window.APP_CONFIG || {
-    API_URL: '',
-    API_PATH: '/api/chat',
-    API_FALLBACK_URLS: [
-        'http://127.0.0.1:3001/api/chat',
-        'http://127.0.0.1:3002/api/chat',
-        'http://127.0.0.1:3003/api/chat',
-        'http://127.0.0.1:3004/api/chat',
-        'http://127.0.0.1:3005/api/chat',
-        'http://localhost:3001/api/chat',
-        'http://localhost:3002/api/chat',
-        'http://localhost:3003/api/chat',
-        'http://localhost:3004/api/chat',
-        'http://localhost:3005/api/chat'
-    ],
-    REQUEST_TIMEOUT_MS: 0
+    WEBHOOK_URL: 'https://n8nwebhook.bukamdotcom.click/webhook/c751b7eb-8ee8-4b2a-9520-cc81319af756',
+    REQUEST_TIMEOUT_MS: 0,
+    STORAGE_KEY: 'chatHistoryDirectWebhook'
 };
 
 let currentChatId;
@@ -43,7 +31,7 @@ const sidebar = document.querySelector('.sidebar');
 
 function loadChatHistory() {
     try {
-        const rawChatHistory = localStorage.getItem('chatHistory');
+        const rawChatHistory = localStorage.getItem(config.STORAGE_KEY || 'chatHistoryDirectWebhook');
 
         if (!rawChatHistory) {
             return {};
@@ -99,7 +87,7 @@ toggleSidebarButton.addEventListener('click', () => {
 });
 
 function saveToLocalStorage() {
-    localStorage.setItem('chatHistory', JSON.stringify(chatHistoryData));
+    localStorage.setItem(config.STORAGE_KEY || 'chatHistoryDirectWebhook', JSON.stringify(chatHistoryData));
 }
 
 function syncSendButtonState() {
@@ -128,50 +116,8 @@ function buildWebhookPayload(userMessage) {
     };
 }
 
-function getApiCandidates() {
-    const candidates = [];
-    const seen = new Set();
-
-    function addCandidate(url) {
-        if (typeof url !== 'string') {
-            return;
-        }
-
-        const normalizedUrl = url.trim();
-
-        if (!normalizedUrl || seen.has(normalizedUrl)) {
-            return;
-        }
-
-        seen.add(normalizedUrl);
-        candidates.push(normalizedUrl);
-    }
-
-    addCandidate(config.API_URL);
-
-    if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
-        addCandidate(new URL(config.API_PATH || '/api/chat', window.location.origin).toString());
-    }
-
-    if (Array.isArray(config.API_FALLBACK_URLS)) {
-        config.API_FALLBACK_URLS.forEach(addCandidate);
-    }
-
-    return candidates;
-}
-
-function shouldTryNextApiCandidate(response, responseBody) {
-    if ([404, 405, 426].includes(response.status)) {
-        return true;
-    }
-
-    const normalizedBody = String(responseBody || '').toLowerCase();
-
-    return (
-        normalizedBody.includes('file not found') ||
-        normalizedBody.includes('upgrade required') ||
-        normalizedBody.includes('cannot post')
-    );
+function getWebhookUrl() {
+    return String(config.WEBHOOK_URL || '').trim();
 }
 
 function extractTextFromPayload(payload, depth = 0) {
@@ -237,83 +183,80 @@ function extractTextFromPayload(payload, depth = 0) {
 }
 
 async function requestChatApi(userMessage) {
-    const requestBody = JSON.stringify(buildWebhookPayload(userMessage));
-    const apiCandidates = getApiCandidates();
+    const webhookUrl = getWebhookUrl();
 
-    for (const apiUrl of apiCandidates) {
-        const controller = new AbortController();
-        const timeoutId = Number(config.REQUEST_TIMEOUT_MS) > 0
-            ? setTimeout(() => controller.abort(), Number(config.REQUEST_TIMEOUT_MS))
-            : null;
-
-        try {
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json, text/plain, */*'
-                },
-                body: requestBody,
-                signal: controller.signal
-            });
-
-            const rawBody = await response.text();
-            const trimmedBody = rawBody.trim();
-
-            if (!response.ok) {
-                if (shouldTryNextApiCandidate(response, trimmedBody)) {
-                    continue;
-                }
-
-                const error = new Error(
-                    trimmedBody || `Chat request failed with status ${response.status}`
-                );
-                error.status = response.status;
-                error.responseBody = trimmedBody;
-                throw error;
-            }
-
-            if (!trimmedBody) {
-                throw new Error('The local chat server returned an empty response.');
-            }
-
-            const contentType = response.headers.get('content-type') || '';
-            const looksLikeJson =
-                contentType.includes('application/json') ||
-                /^[\[{"]/.test(trimmedBody);
-
-            if (looksLikeJson) {
-                try {
-                    const payload = JSON.parse(trimmedBody);
-                    const extractedText = extractTextFromPayload(payload);
-
-                    if (extractedText) {
-                        return extractedText;
-                    }
-                } catch (error) {
-                    console.warn('Response was not valid JSON:', error);
-                }
-            }
-
-            return trimmedBody;
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error('The local chat server request timed out. Increase `REQUEST_TIMEOUT_MS` or set it to `0` to disable the timeout.');
-            }
-
-            if (error instanceof TypeError) {
-                continue;
-            }
-
-            throw error;
-        } finally {
-            if (timeoutId) {
-                clearTimeout(timeoutId);
-            }
-        }
+    if (!webhookUrl) {
+        throw new Error('No webhook URL is configured in `config.js`.');
     }
 
-    throw new Error('Unable to reach the local chat server. Start `node server.js`; it will use the first free port from 3001 upward.');
+    const requestBody = JSON.stringify(buildWebhookPayload(userMessage));
+
+    const controller = new AbortController();
+    const timeoutId = Number(config.REQUEST_TIMEOUT_MS) > 0
+        ? setTimeout(() => controller.abort(), Number(config.REQUEST_TIMEOUT_MS))
+        : null;
+
+    try {
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*'
+            },
+            body: requestBody,
+            signal: controller.signal
+        });
+
+        const rawBody = await response.text();
+        const trimmedBody = rawBody.trim();
+
+        if (!response.ok) {
+            const error = new Error(
+                trimmedBody || `Webhook request failed with status ${response.status}`
+            );
+            error.status = response.status;
+            error.responseBody = trimmedBody;
+            throw error;
+        }
+
+        if (!trimmedBody) {
+            throw new Error('The webhook returned 200 OK but no response body.');
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        const looksLikeJson =
+            contentType.includes('application/json') ||
+            /^[\[{"]/.test(trimmedBody);
+
+        if (looksLikeJson) {
+            try {
+                const payload = JSON.parse(trimmedBody);
+                const extractedText = extractTextFromPayload(payload);
+
+                if (extractedText) {
+                    return extractedText;
+                }
+            } catch (error) {
+                console.warn('Response was not valid JSON:', error);
+            }
+        }
+
+        return trimmedBody;
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error('The webhook request timed out. Increase `REQUEST_TIMEOUT_MS` or set it to `0` to disable the timeout.');
+        }
+
+        if (error instanceof TypeError) {
+            throw new Error('Unable to reach the n8n webhook. If this app is hosted on GitHub Pages, make sure your webhook allows CORS from that site.');
+        }
+
+        throw error;
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
+    }
 }
 
 async function sendMessageToWebhook(userMessage) {
@@ -358,7 +301,7 @@ function initChat(chatId = null) {
             appendMessage(message.role, message.content);
         });
     } else {
-        appendMessage('bot', "Hello! I'm connected to your n8n Ollama webhook. How can I help?");
+        appendMessage('bot', "Hello! I'm connected directly to your n8n webhook. How can I help?");
     }
 
     updateActiveChatInSidebar();

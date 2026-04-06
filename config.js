@@ -1,18 +1,6 @@
-// config.js - Frontend endpoint configuration
+// Static frontend config: calls n8n directly, no local Node server required.
 window.APP_CONFIG = {
-  API_URL: '',
-  API_PATH: '/api/chat',
-  API_FALLBACK_URLS: [
-    'http://127.0.0.1:3001/api/chat',
-    'http://127.0.0.1:3002/api/chat',
-    'http://127.0.0.1:3003/api/chat',
-    'http://127.0.0.1:3004/api/chat',
-    'http://127.0.0.1:3005/api/chat',
-    'http://localhost:3001/api/chat',
-    'http://localhost:3002/api/chat',
-    'http://localhost:3003/api/chat',
-    'http://localhost:3004/api/chat',
-    'http://localhost:3005/api/chat'
-  ],
-  REQUEST_TIMEOUT_MS: 0
+  WEBHOOK_URL: 'https://n8nwebhook.bukamdotcom.click/webhook/c751b7eb-8ee8-4b2a-9520-cc81319af756',
+  REQUEST_TIMEOUT_MS: 0,
+  STORAGE_KEY: 'chatHistoryDirectWebhook'
 };
